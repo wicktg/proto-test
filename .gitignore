@@ -43,3 +43,9 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Local machine config — never commit
+android/local.properties
+
+# Flutter plugins file (auto-generated)
+.flutter-plugins
