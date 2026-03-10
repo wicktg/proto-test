@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../home/providers/home_provider.dart';
+import '../../session/providers/session_provider.dart';
 
-class SessionSummaryScreen extends ConsumerStatefulWidget {
+class SessionSummaryScreen extends ConsumerWidget {
   final int durationMinutes;
   final int blockedCount;
 
@@ -13,132 +15,104 @@ class SessionSummaryScreen extends ConsumerStatefulWidget {
     required this.blockedCount,
   });
 
-  @override
-  ConsumerState<SessionSummaryScreen> createState() =>
-      _SessionSummaryScreenState();
-}
+  String _formatDuration(int minutes) {
+    final hours = minutes ~/ 60;
+    final mins = minutes % 60;
+    if (hours > 0 && mins > 0) return '${hours}h ${mins}m';
+    if (hours > 0) return '${hours}h';
+    return '${minutes}m';
+  }
 
-class _SessionSummaryScreenState extends ConsumerState<SessionSummaryScreen>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-  late Animation<double> _slideUp;
-  late Animation<double> _fade;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 700),
-    )..forward();
-    _fade = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
-    _slideUp = Tween<double>(begin: 30, end: 0)
-        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
+  String _encouragement() {
+    if (blockedCount == 0) return 'Clean session.';
+    if (blockedCount <= 5) return 'Nice focus.';
+    return 'Beast mode.';
   }
 
   @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  String get _encouragement {
-    if (widget.durationMinutes >= 60) return "That's a real session. Respect.";
-    if (widget.durationMinutes >= 45) return "Solid work. Keep stacking days.";
-    if (widget.durationMinutes >= 25) return "Pomodoro complete. One down.";
-    return "Every minute counts. Good start.";
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final hours = widget.durationMinutes ~/ 60;
-    final mins = widget.durationMinutes % 60;
-    final timeStr = hours > 0
-        ? '${hours}h ${mins}m'
-        : '${widget.durationMinutes}m';
+  Widget build(BuildContext context, WidgetRef ref) {
+    final timeLabel = _formatDuration(durationMinutes);
+    final encouragement = _encouragement();
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: AnimatedBuilder(
-        animation: _ctrl,
-        builder: (_, child) => Opacity(
-          opacity: _fade.value,
-          child: Transform.translate(
-            offset: Offset(0, _slideUp.value),
-            child: child,
-          ),
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 28),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 48),
-                Text(
-                  'Session\ncomplete.',
-                  style: Theme.of(context).textTheme.displayMedium,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  _encouragement,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodyMedium!
-                      .copyWith(color: AppColors.textSecondary),
-                ),
-                const SizedBox(height: 56),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 28),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 56),
 
-                // Stats cards
-                Row(
-                  children: [
-                    Expanded(
-                      child: _SummaryCard(
-                        icon: Icons.timer_outlined,
-                        label: 'Focused for',
-                        value: timeStr,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _SummaryCard(
-                        icon: Icons.block_rounded,
-                        label: 'Blocked',
-                        value: widget.blockedCount.toString(),
-                        valueColor: widget.blockedCount > 0
-                            ? AppColors.accent
-                            : AppColors.textPrimary,
-                      ),
-                    ),
-                  ],
-                ),
+              // Headline
+              Text(
+                'Session\nComplete',
+                style: Theme.of(context).textTheme.displayMedium,
+              ),
 
-                const Spacer(),
+              const SizedBox(height: 12),
 
-                // Done button
-                GestureDetector(
-                  onTap: () => context.go('/home'),
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 18),
-                    decoration: BoxDecoration(
+              // Encouragement line
+              Text(
+                encouragement,
+                style: Theme.of(context).textTheme.bodyLarge!.copyWith(
                       color: AppColors.accent,
-                      borderRadius: BorderRadius.circular(16),
                     ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      'Done',
-                      style: Theme.of(context).textTheme.labelLarge!.copyWith(
-                            color: AppColors.background,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                          ),
+              ),
+
+              const SizedBox(height: 48),
+
+              // Stats row
+              Row(
+                children: [
+                  Expanded(
+                    child: _BigStatCard(
+                      label: 'Time studied',
+                      value: timeLabel,
                     ),
                   ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _BigStatCard(
+                      label: 'Blocked',
+                      value: blockedCount.toString(),
+                    ),
+                  ),
+                ],
+              ),
+
+              const Spacer(),
+
+              // Done button
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton(
+                  onPressed: () {
+                    ref.read(homeProvider.notifier).load();
+                    ref.read(sessionProvider.notifier).resetToIdle();
+                    context.go('/home');
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.accent,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: Text(
+                    'Done',
+                    style: Theme.of(context).textTheme.labelLarge!.copyWith(
+                          color: AppColors.background,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                  ),
                 ),
-                const SizedBox(height: 40),
-              ],
-            ),
+              ),
+
+              const SizedBox(height: 40),
+            ],
           ),
         ),
       ),
@@ -146,18 +120,11 @@ class _SessionSummaryScreenState extends ConsumerState<SessionSummaryScreen>
   }
 }
 
-class _SummaryCard extends StatelessWidget {
-  final IconData icon;
+class _BigStatCard extends StatelessWidget {
   final String label;
   final String value;
-  final Color? valueColor;
 
-  const _SummaryCard({
-    required this.icon,
-    required this.label,
-    required this.value,
-    this.valueColor,
-  });
+  const _BigStatCard({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
@@ -170,20 +137,18 @@ class _SummaryCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: AppColors.textSecondary, size: 20),
-          const SizedBox(height: 16),
           Text(
             label,
-            style: Theme.of(context)
-                .textTheme
-                .bodyMedium!
-                .copyWith(color: AppColors.textSecondary),
+            style: Theme.of(context).textTheme.bodyMedium!.copyWith(
+                  color: AppColors.textSecondary,
+                ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 12),
           Text(
             value,
             style: Theme.of(context).textTheme.displayMedium!.copyWith(
-                  color: valueColor ?? AppColors.textPrimary,
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w700,
                   fontSize: 40,
                 ),
           ),

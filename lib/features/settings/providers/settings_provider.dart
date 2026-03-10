@@ -3,27 +3,27 @@ import '../../../data/local/prefs_service.dart';
 
 class SettingsNotifier extends StateNotifier<List<String>> {
   final Ref _ref;
-
   SettingsNotifier(this._ref) : super([]) {
+    _load();
+  }
+
+  void _load() {
     state = _ref.read(prefsServiceProvider).allowlist;
   }
 
-  Future<void> addChannel(String channel) async {
-    final trimmed = channel.trim();
-    if (trimmed.isEmpty || state.contains(trimmed)) return;
-    final updated = [...state, trimmed];
-    state = updated;
-    await _ref.read(prefsServiceProvider).saveAllowlist(updated);
+  Future<void> addChannel(String ch) async {
+    final t = ch.trim();
+    if (t.isEmpty || state.contains(t)) return;
+    state = [...state, t];
+    await _ref.read(prefsServiceProvider).saveAllowlist(state);
   }
 
-  Future<void> removeChannel(String channel) async {
-    final updated = state.where((c) => c != channel).toList();
-    state = updated;
-    await _ref.read(prefsServiceProvider).saveAllowlist(updated);
+  Future<void> removeChannel(String ch) async {
+    state = state.where((c) => c != ch).toList();
+    await _ref.read(prefsServiceProvider).saveAllowlist(state);
   }
 }
 
-final settingsProvider =
-    StateNotifierProvider<SettingsNotifier, List<String>>(
+final settingsProvider = StateNotifierProvider<SettingsNotifier, List<String>>(
   (ref) => SettingsNotifier(ref),
 );

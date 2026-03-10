@@ -15,5 +15,4 @@
     <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
         <item name="android:windowBackground">?android:colorBackground</item>
     </style>
-    <string name="accessibility_service_description">Proto monitors YouTube to block distracting content during study sessions.</string>
 </resources>

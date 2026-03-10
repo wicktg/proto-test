@@ -11,12 +11,19 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
-  final _addCtrl = TextEditingController();
+  final _channelController = TextEditingController();
 
   @override
   void dispose() {
-    _addCtrl.dispose();
+    _channelController.dispose();
     super.dispose();
+  }
+
+  void _addChannel() {
+    final text = _channelController.text.trim();
+    if (text.isEmpty) return;
+    ref.read(settingsProvider.notifier).addChannel(text);
+    _channelController.clear();
   }
 
   @override
@@ -25,137 +32,154 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
-              child: Row(
-                children: [
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: const Icon(Icons.arrow_back_rounded,
-                        color: AppColors.textPrimary),
-                  ),
-                  const SizedBox(width: 16),
-                  Text(
-                    'Edu Channels',
-                    style: Theme.of(context).textTheme.headlineMedium,
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 28),
-              child: Text(
-                'Videos from these channels are always allowed through.',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium!
-                    .copyWith(color: AppColors.textSecondary),
-              ),
-            ),
-            const SizedBox(height: 24),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 28),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: AppColors.surface,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.divider),
-                      ),
-                      child: TextField(
-                        controller: _addCtrl,
-                        style: Theme.of(context).textTheme.bodyLarge,
-                        decoration: InputDecoration(
-                          hintText: 'Add a channel name',
-                          hintStyle: Theme.of(context)
-                              .textTheme
-                              .bodyMedium!
-                              .copyWith(color: AppColors.textSecondary),
-                          border: InputBorder.none,
-                          contentPadding:
-                              const EdgeInsets.symmetric(horizontal: 16),
-                        ),
-                        onSubmitted: (v) {
-                          ref
-                              .read(settingsProvider.notifier)
-                              .addChannel(v);
-                          _addCtrl.clear();
-                        },
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  GestureDetector(
-                    onTap: () {
-                      ref
-                          .read(settingsProvider.notifier)
-                          .addChannel(_addCtrl.text);
-                      _addCtrl.clear();
-                    },
-                    child: Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: AppColors.accent,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(Icons.add_rounded,
-                          color: AppColors.background),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-            Expanded(
-              child: ListView.separated(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 28, vertical: 4),
-                itemCount: channels.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 8),
-                itemBuilder: (context, i) {
-                  final channel = channels[i];
-                  return Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 14),
-                    decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            channel,
-                            style: Theme.of(context).textTheme.bodyLarge,
-                          ),
-                        ),
-                        GestureDetector(
-                          onTap: () => ref
-                              .read(settingsProvider.notifier)
-                              .removeChannel(channel),
-                          child: const Icon(
-                            Icons.remove_circle_outline_rounded,
-                            color: AppColors.textSecondary,
-                            size: 20,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
+      appBar: AppBar(
+        backgroundColor: AppColors.background,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded,
+              color: AppColors.textPrimary),
+          onPressed: () => Navigator.of(context).pop(),
         ),
+        title: Text(
+          'Allowlist',
+          style: Theme.of(context).textTheme.headlineMedium,
+        ),
+      ),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+            child: Text(
+              'These channels are always shown, even in Study Mode',
+              style: Theme.of(context).textTheme.bodyMedium!.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // Add channel row
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _channelController,
+                    style: Theme.of(context).textTheme.bodyLarge!.copyWith(
+                          color: AppColors.textPrimary,
+                        ),
+                    decoration: InputDecoration(
+                      hintText: 'Channel name',
+                      hintStyle: Theme.of(context).textTheme.bodyLarge!.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
+                      filled: true,
+                      fillColor: AppColors.surface,
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 14),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                            color: AppColors.accent, width: 1.5),
+                      ),
+                    ),
+                    onSubmitted: (_) => _addChannel(),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                SizedBox(
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: _addChannel,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.accent,
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: Text(
+                      'Add',
+                      style: Theme.of(context).textTheme.labelLarge!.copyWith(
+                            color: AppColors.background,
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          // Channel list
+          Expanded(
+            child: channels.isEmpty
+                ? Center(
+                    child: Text(
+                      'No channels added yet.',
+                      style: Theme.of(context).textTheme.bodyMedium!.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
+                    ),
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24, vertical: 4),
+                    itemCount: channels.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (context, index) {
+                      final channel = channels[index];
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 14),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                channel,
+                                style: Theme.of(context).textTheme.bodyLarge,
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: () => ref
+                                  .read(settingsProvider.notifier)
+                                  .removeChannel(channel),
+                              icon: const Icon(
+                                Icons.close_rounded,
+                                color: AppColors.textSecondary,
+                                size: 20,
+                              ),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(
+                                minWidth: 32,
+                                minHeight: 32,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
       ),
     );
   }

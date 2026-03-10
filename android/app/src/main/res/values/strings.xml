@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Proto</string>
+    <string name="accessibility_service_description">
+        Proto Study Mode monitors the YouTube app to help you stay focused.
+        When Study Mode is active, it detects and hides non-educational video
+        recommendations and blocks YouTube Shorts. Proto never reads personal
+        data, passwords, or content from any app other than YouTube.
+    </string>
+</resources>
