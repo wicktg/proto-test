@@ -1,7 +1,6 @@
 package com.proto.proto.services
 
 import android.accessibilityservice.AccessibilityService
-import android.accessibilityservice.AccessibilityServiceInfo
 import android.graphics.Rect
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
@@ -17,9 +16,19 @@ class ProtoAccessibilityService : AccessibilityService() {
     private var isSessionActive = false
     private var blockedCount = 0
 
+    // Debounce: prevents ANR by skipping feed scans that arrive faster than 500ms
+    private var lastScanTime = 0L
+
     companion object {
         const val YOUTUBE_PACKAGE = "com.google.android.youtube"
+        private const val SCAN_DEBOUNCE_MS = 500L
+
+        // BFS depth limit: YouTube's hierarchy can be 60+ levels deep.
+        // Unconstrained recursion causes StackOverflowError → service crash → "not working".
+        private const val MAX_TRAVERSE_DEPTH = 12
+
         var instance: ProtoAccessibilityService? = null
+            private set
 
         fun configure(allowlist: List<String>, keywords: List<String>) {
             instance?.classifier?.configure(allowlist, keywords)
@@ -29,6 +38,7 @@ class ProtoAccessibilityService : AccessibilityService() {
             instance?.apply {
                 isSessionActive = true
                 blockedCount = 0
+                overlayManager.clearOverlays()
             }
         }
 
@@ -38,37 +48,42 @@ class ProtoAccessibilityService : AccessibilityService() {
                 overlayManager.clearOverlays()
             }
         }
+
+        fun isConnected(): Boolean = instance != null
     }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
         overlayManager = OverlayManager(this)
-        serviceInfo = serviceInfo?.apply {
-            eventTypes = AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED or
-                    AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
-            packageNames = arrayOf(YOUTUBE_PACKAGE)
-            feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
-            flags = AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS or
-                    AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
-            notificationTimeout = 300
-        }
+        // All event types, package filter, and flags are declared in
+        // accessibility_service_config.xml. Dynamic setServiceInfo() is intentionally
+        // omitted — overriding it at runtime caused "not working" on some OEM devices.
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
         if (!isSessionActive) return
-        if (event.packageName != YOUTUBE_PACKAGE) return
+        if (event.packageName?.toString() != YOUTUBE_PACKAGE) return
 
         when (event.eventType) {
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
-                val desc = event.contentDescription?.toString() ?: ""
+                // Primary: class name contains "Shorts" (stable across YouTube versions)
+                val className = event.className?.toString() ?: ""
+                if (className.contains("Shorts", ignoreCase = true)) {
+                    handleShortsDetected()
+                    return
+                }
+                // Fallback: window text contains "Shorts" indicator
                 val textContent = event.text.joinToString(" ")
-                if (classifier.isShorts(desc) || classifier.isShorts(textContent)) {
+                if (textContent.isNotEmpty() && classifier.isShorts(textContent)) {
                     handleShortsDetected()
                 }
             }
             AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> {
-                scanFeed(event.source)
+                val now = System.currentTimeMillis()
+                if (now - lastScanTime < SCAN_DEBOUNCE_MS) return
+                lastScanTime = now
+                event.source?.let { scanFeed(it) }
             }
         }
     }
@@ -79,59 +94,75 @@ class ProtoAccessibilityService : AccessibilityService() {
         performGlobalAction(GLOBAL_ACTION_BACK)
     }
 
-    private fun scanFeed(rootNode: AccessibilityNodeInfo?) {
-        rootNode ?: return
+    private fun scanFeed(rootNode: AccessibilityNodeInfo) {
+        val videoNodes = collectVideoNodes(rootNode)
+        if (videoNodes.isEmpty()) return
+
         overlayManager.clearOverlays()
-        collectVideoNodes(rootNode).forEach { node ->
+
+        for (node in videoNodes) {
             val title = node.contentDescription?.toString()
                 ?: node.text?.toString()
-                ?: return@forEach
-            if (title.isBlank()) return@forEach
+                ?: continue
+            if (title.isBlank()) continue
 
-            val channel = findChannelName(node)
-            val result = classifier.classify(title, channel)
+            // Channel name extraction via view IDs is unreliable in production YouTube
+            // (IDs are obfuscated). Pass empty string — classifier keyword-matches on title.
+            val result = classifier.classify(title, "")
 
             if (result.type == ContentType.NON_EDUCATIONAL) {
                 val bounds = Rect()
                 node.getBoundsInScreen(bounds)
-                overlayManager.addDimOverlay(bounds)
-                blockedCount++
-                EventBridge.sendBlockedCount(blockedCount)
+                if (!bounds.isEmpty) {
+                    overlayManager.addDimOverlay(bounds)
+                    blockedCount++
+                    EventBridge.sendBlockedCount(blockedCount)
+                }
             }
         }
     }
 
+    /**
+     * Iterative BFS traversal with depth cap.
+     *
+     * The previous recursive implementation caused StackOverflowError on YouTube's
+     * deep view hierarchy (60+ levels), crashing the service and producing the
+     * "not working" state in Android Settings.
+     */
     private fun collectVideoNodes(root: AccessibilityNodeInfo): List<AccessibilityNodeInfo> {
         val results = mutableListOf<AccessibilityNodeInfo>()
-        fun traverse(node: AccessibilityNodeInfo) {
+        // Queue of (node, depth)
+        val queue = ArrayDeque<Pair<AccessibilityNodeInfo, Int>>()
+        queue.add(root to 0)
+
+        while (queue.isNotEmpty()) {
+            val (node, depth) = queue.removeFirst()
+
             val viewId = node.viewIdResourceName ?: ""
             val desc = node.contentDescription?.toString() ?: ""
             val text = node.text?.toString() ?: ""
-            if ((viewId.contains("video_title") ||
-                        viewId.contains("thumbnail") ||
-                        (desc.length > 20 && !viewId.contains("button"))) &&
-                (text.isNotEmpty() || desc.isNotEmpty())
-            ) {
+
+            // Heuristic for video cards: meaningful text, not a button/interactive control
+            val isButtonLike = node.isClickable && (
+                viewId.contains("button", ignoreCase = true) ||
+                node.className?.toString()?.contains("Button") == true ||
+                node.className?.toString()?.contains("CheckBox") == true
+            )
+            val hasContent = desc.length > 15 || text.length > 10
+
+            if (hasContent && !isButtonLike) {
                 results.add(node)
             }
-            for (i in 0 until node.childCount) {
-                node.getChild(i)?.let { traverse(it) }
-            }
-        }
-        traverse(root)
-        return results
-    }
 
-    private fun findChannelName(node: AccessibilityNodeInfo): String {
-        val parent = node.parent ?: return ""
-        for (i in 0 until parent.childCount) {
-            val sibling = parent.getChild(i) ?: continue
-            val id = sibling.viewIdResourceName ?: ""
-            if (id.contains("channel") || id.contains("owner") || id.contains("author")) {
-                return sibling.text?.toString() ?: ""
+            if (depth < MAX_TRAVERSE_DEPTH) {
+                // Cap children per node to prevent combinatorial explosion on wide trees
+                val childLimit = minOf(node.childCount, 20)
+                for (i in 0 until childLimit) {
+                    node.getChild(i)?.let { queue.add(it to (depth + 1)) }
+                }
             }
         }
-        return ""
+        return results
     }
 
     override fun onInterrupt() {}

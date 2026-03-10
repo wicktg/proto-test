@@ -36,10 +36,15 @@ class HomeScreen extends ConsumerWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Text(
-                    name.isNotEmpty ? 'Hey, $name.' : 'Hey.',
-                    style: Theme.of(context).textTheme.displayMedium,
+                  Expanded(
+                    child: Text(
+                      name.isNotEmpty ? 'Hey, $name.' : 'Hey.',
+                      style: Theme.of(context).textTheme.displayMedium,
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
                   ),
+                  const SizedBox(width: 12),
                   GestureDetector(
                     onTap: () => context.go('/settings'),
                     child: Container(
@@ -60,109 +65,131 @@ class HomeScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 28),
 
-              // Permission warning cards
-              if (!hasAccessibility) ...[
-                _PermissionWarningCard(
-                  title: 'Enable Accessibility',
-                  description:
-                      'Proto needs Accessibility permission to monitor YouTube and block distractions.',
-                  onTap: () =>
-                      ref.read(homeProvider.notifier).openAccessibilitySettings(),
-                ),
-                const SizedBox(height: 12),
-              ],
-              if (!hasOverlay) ...[
-                _PermissionWarningCard(
-                  title: 'Enable Overlay',
-                  description:
-                      'Proto needs Display Over Apps permission to show the block screen on YouTube.',
-                  onTap: () =>
-                      ref.read(homeProvider.notifier).openOverlaySettings(),
-                ),
-                const SizedBox(height: 12),
-              ],
+              // Scrollable middle content — prevents overflow when
+              // permission cards, CTA, and chips all stack together
+              Expanded(
+                child: SingleChildScrollView(
+                  physics: const ClampingScrollPhysics(),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Permission warning cards
+                      if (!hasAccessibility) ...[
+                        _PermissionWarningCard(
+                          title: 'Enable Accessibility',
+                          description:
+                              'Proto needs Accessibility permission to monitor YouTube and block distractions.',
+                          onTap: () => ref
+                              .read(homeProvider.notifier)
+                              .openAccessibilitySettings(),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+                      if (!hasOverlay) ...[
+                        _PermissionWarningCard(
+                          title: 'Enable Overlay',
+                          description:
+                              'Proto needs Display Over Apps permission to show the block screen on YouTube.',
+                          onTap: () => ref
+                              .read(homeProvider.notifier)
+                              .openOverlaySettings(),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
 
-              if (!hasAccessibility || !hasOverlay) const SizedBox(height: 12),
+                      if (!hasAccessibility || !hasOverlay)
+                        const SizedBox(height: 12),
 
-              // Main CTA button
-              if (isActive)
-                SizedBox(
-                  width: double.infinity,
-                  height: 72,
-                  child: ElevatedButton(
-                    onPressed: () => context.go('/active'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.accent,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      elevation: 0,
-                    ),
-                    child: Text(
-                      'Resume Session',
-                      style: Theme.of(context).textTheme.headlineMedium!.copyWith(
-                            color: AppColors.background,
-                            fontWeight: FontWeight.w700,
+                      // Main CTA button
+                      if (isActive)
+                        SizedBox(
+                          width: double.infinity,
+                          height: 72,
+                          child: ElevatedButton(
+                            onPressed: () => context.go('/active'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.accent,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              elevation: 0,
+                            ),
+                            child: Text(
+                              'Resume Session',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .headlineMedium!
+                                  .copyWith(
+                                    color: AppColors.background,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                            ),
                           ),
-                    ),
-                  ),
-                )
-              else
-                SizedBox(
-                  width: double.infinity,
-                  height: 72,
-                  child: ElevatedButton(
-                    onPressed: permissionsGranted
-                        ? () async {
-                            await ref
-                                .read(sessionProvider.notifier)
-                                .startSession();
-                            if (context.mounted) context.go('/active');
-                          }
-                        : null,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.background,
-                      disabledBackgroundColor: AppColors.surface,
-                      side: const BorderSide(color: AppColors.accent, width: 1.5),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      elevation: 0,
-                    ),
-                    child: Text(
-                      'Start Study Mode',
-                      style: Theme.of(context).textTheme.headlineMedium!.copyWith(
-                            color: permissionsGranted
-                                ? AppColors.accent
-                                : AppColors.textSecondary,
-                            fontWeight: FontWeight.w700,
+                        )
+                      else
+                        SizedBox(
+                          width: double.infinity,
+                          height: 72,
+                          child: ElevatedButton(
+                            onPressed: permissionsGranted
+                                ? () async {
+                                    await ref
+                                        .read(sessionProvider.notifier)
+                                        .startSession();
+                                    if (context.mounted) context.go('/active');
+                                  }
+                                : null,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.background,
+                              disabledBackgroundColor: AppColors.surface,
+                              side: const BorderSide(
+                                  color: AppColors.accent, width: 1.5),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              elevation: 0,
+                            ),
+                            child: Text(
+                              'Start Study Mode',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .headlineMedium!
+                                  .copyWith(
+                                    color: permissionsGranted
+                                        ? AppColors.accent
+                                        : AppColors.textSecondary,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                            ),
                           ),
-                    ),
+                        ),
+
+                      const SizedBox(height: 20),
+
+                      // Duration chips (only when idle)
+                      if (!isActive) ...[
+                        Text(
+                          'Session length',
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium!
+                              .copyWith(color: AppColors.textSecondary),
+                        ),
+                        const SizedBox(height: 12),
+                        _DurationChips(
+                          selectedDuration: selectedDuration,
+                          onSelect: (mins) =>
+                              ref.read(sessionProvider.notifier).setDuration(mins),
+                        ),
+                      ],
+
+                      const SizedBox(height: 32),
+                    ],
                   ),
                 ),
+              ),
 
-              const SizedBox(height: 20),
-
-              // Duration chips (only when idle)
-              if (!isActive) ...[
-                Text(
-                  'Session length',
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodyMedium!
-                      .copyWith(color: AppColors.textSecondary),
-                ),
-                const SizedBox(height: 12),
-                _DurationChips(
-                  selectedDuration: selectedDuration,
-                  onSelect: (mins) =>
-                      ref.read(sessionProvider.notifier).setDuration(mins),
-                ),
-              ],
-
-              const Spacer(),
-
-              // Stats row
+              // Stats row — always pinned at bottom, outside scroll view
               _StatsRow(
                 focusedMinutes: home.todayFocusedMinutes,
                 blockedCount: home.todayBlockedCount,
@@ -251,34 +278,32 @@ class _DurationChips extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    // Wrap instead of Row — handles small screens and text scaling without overflow
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
       children: AppConstants.sessionDurations.map((duration) {
         final isSelected = selectedDuration == duration;
-        return Padding(
-          padding: const EdgeInsets.only(right: 8),
-          child: GestureDetector(
-            onTap: () => onSelect(duration),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                color: isSelected ? AppColors.accent : AppColors.surface,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: isSelected
-                      ? AppColors.accent
-                      : AppColors.textSecondary,
-                ),
+        return GestureDetector(
+          onTap: () => onSelect(duration),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: isSelected ? AppColors.accent : AppColors.surface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color:
+                    isSelected ? AppColors.accent : AppColors.textSecondary,
               ),
-              child: Text(
-                '$duration min',
-                style: Theme.of(context).textTheme.labelLarge!.copyWith(
-                      color: isSelected
-                          ? AppColors.background
-                          : AppColors.textPrimary,
-                    ),
-              ),
+            ),
+            child: Text(
+              '$duration min',
+              style: Theme.of(context).textTheme.labelLarge!.copyWith(
+                    color: isSelected
+                        ? AppColors.background
+                        : AppColors.textPrimary,
+                  ),
             ),
           ),
         );

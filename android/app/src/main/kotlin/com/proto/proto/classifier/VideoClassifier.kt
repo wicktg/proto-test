@@ -15,11 +15,21 @@ class VideoClassifier {
 
     fun classify(title: String, channelName: String = ""): ClassificationResult {
         val lowerTitle = title.lowercase()
-        val lowerChannel = channelName.lowercase()
+        val lowerChannel = channelName.lowercase().trim()
 
-        if (allowlist.any { lowerChannel.contains(it) || it.contains(lowerChannel) }) {
-            return ClassificationResult(ContentType.EDUCATIONAL, "allowlist")
+        // Guard: only check allowlist when channel name is actually known.
+        // An empty lowerChannel would make `it.contains("")` true for every entry
+        // (every string contains the empty string), classifying ALL content as educational.
+        if (lowerChannel.isNotEmpty()) {
+            if (allowlist.any { entry ->
+                lowerChannel == entry ||
+                lowerChannel.contains(entry) ||
+                entry.contains(lowerChannel)
+            }) {
+                return ClassificationResult(ContentType.EDUCATIONAL, "allowlist")
+            }
         }
+
         if (keywords.any { lowerTitle.contains(it) }) {
             return ClassificationResult(ContentType.EDUCATIONAL, "keyword")
         }

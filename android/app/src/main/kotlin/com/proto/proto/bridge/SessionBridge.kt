@@ -19,6 +19,14 @@ class SessionBridge(private val context: Context) : MethodChannel.MethodCallHand
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
             "startSession" -> {
+                if (!ProtoAccessibilityService.isConnected()) {
+                    result.error(
+                        "SERVICE_NOT_CONNECTED",
+                        "Accessibility Service is not running. Enable it in Settings → Accessibility → Proto.",
+                        null
+                    )
+                    return
+                }
                 val durationMinutes = call.argument<Int>("durationMinutes") ?: 25
                 val allowlist = call.argument<List<String>>("allowlist") ?: emptyList()
                 val keywords = call.argument<List<String>>("keywords") ?: emptyList()
@@ -59,7 +67,8 @@ class SessionBridge(private val context: Context) : MethodChannel.MethodCallHand
                     mapOf(
                         "accessibility" to isAccessibilityEnabled(),
                         "overlay" to Settings.canDrawOverlays(context),
-                        "notification" to true
+                        "notification" to true,
+                        "serviceConnected" to ProtoAccessibilityService.isConnected()
                     )
                 )
             }

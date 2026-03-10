@@ -144,13 +144,17 @@ class _BigStatCard extends StatelessWidget {
                 ),
           ),
           const SizedBox(height: 12),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.displayMedium!.copyWith(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 40,
-                ),
+          // FittedBox prevents overflow on narrow cards ("1h 30m" at large sizes)
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              style: Theme.of(context).textTheme.displayMedium!.copyWith(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
           ),
         ],
       ),
