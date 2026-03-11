@@ -49,6 +49,10 @@ class SessionNotifier extends StateNotifier<SessionState> {
   Timer? _timer;
   StreamSubscription? _eventSub;
 
+  // Re-entrancy guard: prevents double _endSession() when timer expires
+  // at the same moment the user taps Stop.
+  bool _isEnding = false;
+
   static const _method = MethodChannel(AppConstants.methodChannel);
   static const _event = EventChannel(AppConstants.eventChannel);
 
@@ -57,7 +61,10 @@ class SessionNotifier extends StateNotifier<SessionState> {
   void setDuration(int minutes) =>
       state = state.copyWith(durationMinutes: minutes);
 
-  Future<void> startSession() async {
+  /// Returns true if the session started successfully.
+  /// Returns false if the Kotlin accessibility service is not connected —
+  /// the caller should show an error instead of navigating to Active Mode.
+  Future<bool> startSession() async {
     final prefs = _ref.read(prefsServiceProvider);
     try {
       await _method.invokeMethod(AppConstants.methodStartSession, {
@@ -65,6 +72,15 @@ class SessionNotifier extends StateNotifier<SessionState> {
         'allowlist': prefs.allowlist,
         'keywords': EduKeywords.terms,
       });
+    } on PlatformException catch (e) {
+      if (e.code == 'SERVICE_NOT_CONNECTED') {
+        // Kotlin service not running — do NOT set state to active.
+        // The UI shows "Study Mode Active" but nothing monitors YouTube,
+        // which is worse than showing an error.
+        return false;
+      }
+      // Other platform errors (e.g. service slow to respond):
+      // proceed anyway — timer and counter still work locally.
     } catch (_) {}
 
     state = state.copyWith(
@@ -76,6 +92,7 @@ class SessionNotifier extends StateNotifier<SessionState> {
 
     _startTimer();
     _listenEvents();
+    return true;
   }
 
   void _startTimer() {
@@ -106,6 +123,11 @@ class SessionNotifier extends StateNotifier<SessionState> {
   }
 
   Future<void> _endSession() async {
+    // Guard: timer expiry and user stop tap can both call _endSession concurrently.
+    // Without this, two saveSession() calls insert duplicate DB records.
+    if (_isEnding) return;
+    _isEnding = true;
+
     _eventSub?.cancel();
     try {
       await _method.invokeMethod(AppConstants.methodStopSession);
@@ -116,6 +138,8 @@ class SessionNotifier extends StateNotifier<SessionState> {
         'blockedCount': state.blockedCount,
       });
     } catch (_) {}
+
+    _isEnding = false;
     state = state.copyWith(status: SessionStatus.stopping);
   }
 

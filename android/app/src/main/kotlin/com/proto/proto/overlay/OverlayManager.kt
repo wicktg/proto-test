@@ -15,6 +15,26 @@ class OverlayManager(private val context: Context) {
         context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     private val overlays = mutableListOf<View>()
 
+    /** How many overlays are currently visible. Used by the service to skip
+     *  redundant clear+re-add cycles when the blocked set hasn't changed. */
+    var currentCount: Int = 0
+        private set
+
+    /**
+     * Replace current overlays with a new set of bounds.
+     *
+     * Called instead of clear() + addDimOverlay() in a loop so that the
+     * service can compare [newBounds].size against [currentCount] before
+     * calling this — avoiding the clear-and-rewrite on every debounce tick
+     * when the same content is still on screen (eliminates visible flicker).
+     */
+    fun updateOverlays(newBounds: List<Rect>) {
+        clearOverlays()
+        for (bounds in newBounds) {
+            addDimOverlay(bounds)
+        }
+    }
+
     fun addDimOverlay(bounds: Rect) {
         if (!Settings.canDrawOverlays(context)) return
         if (bounds.isEmpty) return
@@ -44,7 +64,11 @@ class OverlayManager(private val context: Context) {
         try {
             windowManager.addView(overlay, params)
             overlays.add(overlay)
-        } catch (_: Exception) {}
+            currentCount = overlays.size
+        } catch (_: Exception) {
+            // WindowManager.BadTokenException or BadParcelableException:
+            // service context is gone or overlay permission was revoked mid-session.
+        }
     }
 
     fun clearOverlays() {
@@ -52,5 +76,6 @@ class OverlayManager(private val context: Context) {
             try { windowManager.removeView(it) } catch (_: Exception) {}
         }
         overlays.clear()
+        currentCount = 0
     }
 }

@@ -83,7 +83,10 @@ class _ActiveModeScreenState extends ConsumerState<ActiveModeScreen>
           'durationMinutes': next.durationMinutes,
           'blockedCount': next.blockedCount,
         });
-        ref.read(sessionProvider.notifier).resetToIdle();
+        // resetToIdle() is intentionally NOT called here.
+        // Calling state mutations inside ref.listen risks double-fires
+        // during Riverpod's notification cycle. The summary screen's
+        // Done button owns the idle reset.
       }
     });
 
@@ -94,8 +97,8 @@ class _ActiveModeScreenState extends ConsumerState<ActiveModeScreen>
     final timeString =
         '${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
 
-    return WillPopScope(
-      onWillPop: () async => false,
+    return PopScope(
+      canPop: false,
       child: Scaffold(
         backgroundColor: AppColors.background,
         body: SafeArea(

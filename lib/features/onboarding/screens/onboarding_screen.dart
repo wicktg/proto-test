@@ -284,38 +284,47 @@ class _ChipStepState extends State<_ChipStep> {
             runSpacing: 12,
             children: widget.options.map((option) {
               final isSelected = _selected == option;
-              return GestureDetector(
-                onTap: () {
-                  setState(() => _selected = option);
-                  Future.delayed(const Duration(milliseconds: 200), () {
-                    widget.onSelect(option);
-                  });
-                },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 14,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isSelected ? AppColors.accent : AppColors.surface,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color:
+              // Fix 2A: Semantics wrapper makes each chip discoverable and
+              // activatable by TalkBack. GestureDetector alone exposes nothing.
+              return Semantics(
+                label: option,
+                button: true,
+                selected: isSelected,
+                child: GestureDetector(
+                  onTap: () {
+                    setState(() => _selected = option);
+                    Future.delayed(const Duration(milliseconds: 200), () {
+                      widget.onSelect(option);
+                    });
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 14,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isSelected ? AppColors.accent : AppColors.surface,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color:
                           isSelected ? AppColors.accent : AppColors.textSecondary,
                       width: 1,
                     ),
                   ),
-                  child: Text(
-                    option,
-                    style: Theme.of(context).textTheme.labelLarge!.copyWith(
-                          color: isSelected
-                              ? AppColors.background
-                              : AppColors.textPrimary,
-                        ),
+                  child: ExcludeSemantics(
+                    child: Text(
+                      option,
+                      style: Theme.of(context).textTheme.labelLarge!.copyWith(
+                            color: isSelected
+                                ? AppColors.background
+                                : AppColors.textPrimary,
+                          ),
+                    ),
                   ),
                 ),
-              );
+              ),
+            );
             }).toList(),
           ),
           const Spacer(),

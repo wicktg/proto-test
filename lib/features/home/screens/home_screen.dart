@@ -45,9 +45,11 @@ class HomeScreen extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  GestureDetector(
-                    onTap: () => context.go('/settings'),
-                    child: Container(
+                  // Fix 2C: IconButton exposes semantics automatically
+                  IconButton(
+                    onPressed: () => context.go('/settings'),
+                    tooltip: 'Settings',
+                    icon: Container(
                       width: 44,
                       height: 44,
                       decoration: BoxDecoration(
@@ -133,10 +135,30 @@ class HomeScreen extends ConsumerWidget {
                           child: ElevatedButton(
                             onPressed: permissionsGranted
                                 ? () async {
-                                    await ref
+                                    // Fix 1B+1C: startSession() returns false when
+                                    // the Kotlin accessibility service isn't connected.
+                                    // Do NOT navigate to Active Mode in that case.
+                                    final started = await ref
                                         .read(sessionProvider.notifier)
                                         .startSession();
-                                    if (context.mounted) context.go('/active');
+                                    if (!context.mounted) return;
+                                    if (started) {
+                                      context.go('/active');
+                                    } else {
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'Accessibility Service isn\'t active. Re-enable it in Settings → Accessibility → Proto.',
+                                          ),
+                                          backgroundColor: AppColors.surface,
+                                          duration: Duration(seconds: 4),
+                                        ),
+                                      );
+                                      // Reload permission state so the warning
+                                      // card re-appears if the service dropped.
+                                      ref.read(homeProvider.notifier).load();
+                                    }
                                   }
                                 : null,
                             style: ElevatedButton.styleFrom(
@@ -248,8 +270,15 @@ class _PermissionWarningCard extends StatelessWidget {
                       ),
                 ),
                 const SizedBox(height: 10),
-                GestureDetector(
-                  onTap: onTap,
+                // Fix 2A: TextButton provides built-in semantics (role=button,
+                // label). GestureDetector exposes nothing to TalkBack.
+                TextButton(
+                  onPressed: onTap,
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: const Size(0, 32),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
                   child: Text(
                     'Open Settings →',
                     style: Theme.of(context).textTheme.labelLarge!.copyWith(
@@ -278,32 +307,41 @@ class _DurationChips extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Wrap instead of Row — handles small screens and text scaling without overflow
     return Wrap(
       spacing: 8,
       runSpacing: 8,
       children: AppConstants.sessionDurations.map((duration) {
         final isSelected = selectedDuration == duration;
-        return GestureDetector(
-          onTap: () => onSelect(duration),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            decoration: BoxDecoration(
-              color: isSelected ? AppColors.accent : AppColors.surface,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color:
-                    isSelected ? AppColors.accent : AppColors.textSecondary,
+        // Fix 2A: Semantics wraps GestureDetector so TalkBack announces
+        // the chip label and its selected state.
+        return Semantics(
+          label: '$duration minutes',
+          button: true,
+          selected: isSelected,
+          child: GestureDetector(
+            onTap: () => onSelect(duration),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: isSelected ? AppColors.accent : AppColors.surface,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color:
+                      isSelected ? AppColors.accent : AppColors.textSecondary,
+                ),
               ),
-            ),
-            child: Text(
-              '$duration min',
-              style: Theme.of(context).textTheme.labelLarge!.copyWith(
-                    color: isSelected
-                        ? AppColors.background
-                        : AppColors.textPrimary,
-                  ),
+              child: ExcludeSemantics(
+                child: Text(
+                  '$duration min',
+                  style: Theme.of(context).textTheme.labelLarge!.copyWith(
+                        color: isSelected
+                            ? AppColors.background
+                            : AppColors.textPrimary,
+                      ),
+                ),
+              ),
             ),
           ),
         );
@@ -360,31 +398,38 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: Theme.of(context)
-                .textTheme
-                .bodyMedium!
-                .copyWith(color: AppColors.textSecondary),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.headlineLarge!.copyWith(
-                  color: AppColors.accent,
-                  fontWeight: FontWeight.w700,
-                ),
-          ),
-        ],
+    return Semantics(
+      label: '$label: $value',
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ExcludeSemantics(
+              child: Text(
+                label,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyMedium!
+                    .copyWith(color: AppColors.textSecondary),
+              ),
+            ),
+            const SizedBox(height: 8),
+            ExcludeSemantics(
+              child: Text(
+                value,
+                style: Theme.of(context).textTheme.headlineLarge!.copyWith(
+                      color: AppColors.accent,
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
